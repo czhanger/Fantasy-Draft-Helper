@@ -1,9 +1,18 @@
 import os
+import sys
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
+from yfpy.query import YahooFantasySportsQuery
+from pathlib import Path
+from unidecode import unidecode
+import time
 
 load_dotenv()
+
+project_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(project_dir))
+
 creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 scopes = [
     "https://www.googleapis.com/auth/spreadsheets"
@@ -18,6 +27,53 @@ workbook = client.open_by_key(sheet_id)
 
 # select sheet from workbook
 sheet = workbook.worksheet("Draft Tracker")
+player_map = {}
+
+LEAGUE_ID = 131720  # in yahoo url
+GAME_CODE = 'mlb'
+GAME_ID = 458  # unique code for 2025
+NUM_TEAMS = 10
+
+# create query tool
+query = YahooFantasySportsQuery(
+    LEAGUE_ID,
+    GAME_CODE,
+    GAME_ID,
+    os.getenv("YAHOO_CONSUMER_KEY"),
+    os.getenv("YAHOO_CONSUMER_SECRET"),
+    env_file_location=project_dir,
+    save_token_data_to_env_file=True
+)
+
+
+def main():
+    generate_player_map()
+    drafted_players = []
+
+    while True:
+        again = input("Query? ")
+        if again == "1":
+            get_drafted_players(drafted_players)
+        else:
+            break
+
+
+def get_drafted_players(players: list):
+    """
+    Google API has a limit of 300 writes per minute
+    Limit is currently set at 1 write per 0.5 seconds or 120 writes per minute
+    """
+    draft_results = query.get_league_draft_results()
+    for i, draft_result in enumerate(draft_results):
+        if not draft_result.player_key:
+            break
+        # only query for player data, if player is new
+        if i + 1 > len(players):  # if player # is greater than the last player drafted 
+            player = query.get_player_ownership(draft_result.player_key)
+            players.append(player)
+            player_taken(unidecode(player.full_name))  # unidecode converts foreign characters to plain text
+            print(f"{i + 1}:{player.full_name}")
+            time.sleep(0.5)  # avoid rate limit
 
 
 def generate_player_map():
@@ -26,17 +82,14 @@ def generate_player_map():
     Key is player's name, value is their ranking / row number on the sheet
     """
     player_list = sheet.col_values(2)
-    player_map = {}
 
     for i, player in enumerate(player_list):
         player_map[player] = i
-
-    return player_map
 
 
 def player_taken(player_name):
     row = player_map[player_name]
     sheet.update_cell(row + 1, 4, "X")
+    
 
-
-player_map = generate_player_map()
+main()
