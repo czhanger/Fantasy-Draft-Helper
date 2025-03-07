@@ -13,10 +13,12 @@ load_dotenv()
 project_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(project_dir))
 
+# google sheets api auth
 creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 scopes = [
     "https://www.googleapis.com/auth/spreadsheets"
 ]
+
 # create a client that can access sheets
 creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
 client = gspread.authorize(creds)
@@ -29,6 +31,7 @@ workbook = client.open_by_key(sheet_id)
 sheet = workbook.worksheet("Draft Tracker")
 player_map = {}
 
+# yahoo api parameters
 LEAGUE_ID = 131720  # in yahoo url
 GAME_CODE = 'mlb'
 GAME_ID = 458  # unique code for 2025
@@ -51,7 +54,7 @@ def main():
     drafted_players = []
 
     while True:
-        again = input("Query? ")
+        again = input("Query?(1) ")
         if again == "1":
             get_drafted_players(drafted_players)
         else:
@@ -61,7 +64,6 @@ def main():
 def get_drafted_players(players: list):
     """
     Google API has a limit of 300 writes per minute
-    Limit is currently set at 1 write per 0.5 seconds or 120 writes per minute
     """
     draft_results = query.get_league_draft_results()
     for i, draft_result in enumerate(draft_results):
@@ -70,10 +72,15 @@ def get_drafted_players(players: list):
         # only query for player data, if player is new
         if i + 1 > len(players):  # if player # is greater than the last player drafted 
             player = query.get_player_ownership(draft_result.player_key)
-            players.append(player)
-            player_taken(unidecode(player.full_name))  # unidecode converts foreign characters to plain text
-            print(f"{i + 1}:{player.full_name}")
-            time.sleep(0.5)  # avoid rate limit
+            try:
+                player_taken(unidecode(player.full_name))  # unidecode converts foreign characters to plain text
+                players.append(player)
+                print(f"{i + 1}:{player.full_name}")
+                time.sleep(0.75)  # avoid rate limit
+            except:
+                print(f"Error: Name Match Error for {player.full_name}")
+                break
+            
 
 
 def generate_player_map():
@@ -90,6 +97,6 @@ def generate_player_map():
 def player_taken(player_name):
     row = player_map[player_name]
     sheet.update_cell(row + 1, 4, "X")
-    
+
 
 main()
