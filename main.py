@@ -18,5 +18,25 @@ workbook = client.open_by_key(sheet_id)
 
 # select sheet from workbook
 sheet = workbook.worksheet("Draft Tracker")
-sheet.update_title("Draft Tracker")
 
+
+def generate_player_map():
+    """
+    Create a hash map of players
+    Key is player's name, value is their ranking / row number on the sheet
+    """
+    player_list = sheet.col_values(2)
+    player_map = {}
+
+    for i, player in enumerate(player_list):
+        player_map[player] = i
+
+    return player_map
+
+
+def player_taken(player_name):
+    row = player_map[player_name]
+    sheet.update_cell(row + 1, 4, "X")
+
+
+player_map = generate_player_map()
