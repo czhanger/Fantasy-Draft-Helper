@@ -32,10 +32,14 @@ sheet = workbook.worksheet("Draft Tracker")
 player_map = {}
 
 # yahoo api parameters
-LEAGUE_ID = 131720  # in yahoo url
+LEAGUE_ID = 132899  # in yahoo url
 GAME_CODE = 'mlb'
 GAME_ID = 458  # unique code for 2025
-NUM_TEAMS = 10
+NUM_TEAMS = 10  # league size
+
+# google sheets parameters
+PLAYER_COL = 2
+TRACKER_COL = 4
 
 # create query tool
 query = YahooFantasySportsQuery(
@@ -66,21 +70,22 @@ def get_drafted_players(players: list):
     Google API has a limit of 300 writes per minute
     """
     draft_results = query.get_league_draft_results()
+
     for i, draft_result in enumerate(draft_results):
-        if not draft_result.player_key:
+        if not draft_result.player_key:  # empty roster spot
             break
-        # only query for player data, if player is new
-        if i + 1 > len(players):  # if player # is greater than the last player drafted 
+
+        if i + 1 > len(players):  # only query new players
             player = query.get_player_ownership(draft_result.player_key)
             try:
-                player_taken(unidecode(player.full_name))  # unidecode converts foreign characters to plain text
+                # unidecode converts foreign characters to plain text
+                player_taken(unidecode(player.full_name))
                 players.append(player)
                 print(f"{i + 1}:{player.full_name}")
                 time.sleep(0.75)  # avoid rate limit
             except:
                 print(f"Error: Name Match Error for {player.full_name}")
                 break
-            
 
 
 def generate_player_map():
@@ -88,7 +93,8 @@ def generate_player_map():
     Create a hash map of players
     Key is player's name, value is their ranking / row number on the sheet
     """
-    player_list = sheet.col_values(2)
+    print("Reading Google Sheets player rankings...")
+    player_list = sheet.col_values(PLAYER_COL)
 
     for i, player in enumerate(player_list):
         player_map[player] = i
@@ -96,7 +102,17 @@ def generate_player_map():
 
 def player_taken(player_name):
     row = player_map[player_name]
-    sheet.update_cell(row + 1, 4, "X")
+    sheet.update_cell(row + 1, TRACKER_COL, "X")
 
 
 main()
+
+"""
+TODO: write a function that compares ranking list names with yahoo api names
+    does not need to fix the error, just detects it so user can fix it before
+    using main function in a real draft
+
+    Change color of name directly, do not use separate column of X's
+
+    skip option ***
+"""
