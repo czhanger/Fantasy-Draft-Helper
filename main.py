@@ -33,7 +33,7 @@ player_map = {}
 alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # yahoo api parameters
-LEAGUE_ID = 132899  # in yahoo url
+LEAGUE_ID = 136870  # in yahoo url
 PUBLIC_LEAGUE_ID = 132899  # used to test
 GAME_CODE = 'mlb'
 GAME_ID = 458  # unique code for 2025
@@ -65,11 +65,13 @@ def main():
     generate_player_map()
     drafted_players = []
     while True:
-        again = input("Query? (Y/N/CurrPick#) ")
+        again = input("Mark Drafted Players? (Y/N/CurrPick#) ")
         if again.lower() == "y":
             get_drafted_players(drafted_players)
         elif again.lower() == "n":
             break
+        elif again.lower() == "r":
+            generate_player_map()
         else:
             try:
                 int(again)
@@ -86,27 +88,31 @@ def get_drafted_players(drafted_players, curr_pick=0):
     Google API has a limit of 300 writes per minute
     """
     draft_results = query.get_league_draft_results()
-
-    for i, draft_result in enumerate(draft_results):
+    draft_pick = 1
+    for draft_result in draft_results:
         if not draft_result.player_key:  # empty roster spot
             break  # stop searching
         
         # if the current pick # is greater than pick # of last drafted player
         # and current pick is greater than user given skip to pick
         # skip to pick is mostly used in case the program crashes
-        if i + 1 > len(drafted_players) and i + 1 > curr_pick:  # query new players
+        if draft_pick > len(drafted_players) and draft_pick > curr_pick:  # query new players
             player = query.get_player_ownership(draft_result.player_key)
-            print(player.eligible_positions)  # use for pitcher list mode
+            # print(player.eligible_positions)  # use for pitcher list mode
             try:
                 # unidecode converts foreign characters to plain text
                 player_taken(unidecode(player.full_name))
-                curr_pick = i + 1
+                curr_pick = draft_pick
                 drafted_players.append(player)
-                print(f"{i + 1}:{player.full_name}")
+                print(f"{draft_pick}:{player.full_name} [{player.eligible_positions[0]}]")
                 time.sleep(0.75)  # avoid rate limit
             except:
                 print(f"Error: Name Match Error for {player.full_name}")
+                print("Adjust the spelling in the Google Sheet to what is shown above and then Press 'R' to update the script")
                 break
+
+        draft_pick += 1
+
     print("Query Complete")
     return curr_pick
 
@@ -121,6 +127,7 @@ def generate_player_map():
 
     for i, player in enumerate(player_list):
         player_map[player] = i + 1
+    print("Google Sheets Player Rankings uploaded.")
 
 
 def player_taken(player_name):
